@@ -1,98 +1,127 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+## Project: NestJS Event Management Feature
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+### Overview
+Adds an Events feature to the NestJS TypeScript starter:
+- Event entity with CRUD and MergeAll.
+- User entity with Many-to-Many relation to Events (invitees).
+- Unit tests and E2E tests (real MySQL).
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+Stack: NestJS 11, TypeORM, MySQL, Jest, Supertest, class-validator.
 
-## Description
+### Requirements
+- Node >= 20, npm >= 10
+- MySQL on localhost:3306 (adjust if different)
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+### Database
+- Create databases:
+  - `events_db` (dev)
+  - `events_test_db` (optional for test isolation)
+- Development connection is configured in `src/app.module.ts`.
+- If you enable a separate test DB, also update `test/database.config.ts`.
 
-## Project setup
+Tables are auto-created via `synchronize: true` in development. Do not use synchronize in production; switch to migrations.
 
+### Install
 ```bash
-$ npm install
+npm install
 ```
 
-## Compile and run the project
-
+### Run (development)
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+npm run start:dev
+# server: http://localhost:3000
 ```
 
-## Run tests
+### API
+- `POST /users`
+  - body: `{ name: string }`
+- `GET /users/:id`
+- `GET /users/:id/events`
 
+- `POST /events`
+  - body:
+    - `title`: string (required)
+    - `description?`: string
+    - `status`: 'TODO' | 'IN_PROGRESS' | 'COMPLETED' (required)
+    - `startTime`: ISO datetime string
+    - `endTime`: ISO datetime string
+    - `invitees?`: number[] (User IDs)
+- `GET /events/:id`
+- `DELETE /events/:id`
+- `POST /events/merge/:userId`
+  - Merge all overlapping events for a given user.
+  - Creates a merged event, deletes the originals, merges invitees, status by priority, and concatenates title/description.
+
+### MergeAll Behavior
+- Sort by `startTime`, group by overlapping ranges.
+- For each group:
+  - time: `min(startTime)` → `max(endTime)`
+  - title: join with " | "
+  - description: join non-empty with " | "
+  - status priority: `IN_PROGRESS > TODO > COMPLETED`
+  - invitees: unique set across group
+- Persist merged event. Delete grouped originals.
+
+### Examples (curl)
+Create user:
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+curl -s -X POST http://localhost:3000/users \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Alice"}'
 ```
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
+Create event:
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+curl -s -X POST http://localhost:3000/events \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title":"Team Meeting",
+    "description":"Weekly sync",
+    "status":"TODO",
+    "startTime":"2024-01-20T14:00:00Z",
+    "endTime":"2024-01-20T15:00:00Z",
+    "invitees":[1]
+  }'
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+Get event:
+```bash
+curl -s http://localhost:3000/events/1
+```
 
-## Resources
+Merge all for user:
+```bash
+curl -s -X POST http://localhost:3000/events/merge/1
+```
 
-Check out a few resources that may come in handy when working with NestJS:
+Delete event:
+```bash
+curl -s -X DELETE http://localhost:3000/events/1 -o /dev/null -w "%{http_code}\n"
+```
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+### Tests
+- Unit tests:
+```bash
+npm test
+```
 
-## Support
+- E2E tests (ensure `src/app.module.ts` matches your credentials and DB):
+```bash
+NODE_ENV=test npm run test:e2e
+# Or only basic E2E suite:
+NODE_ENV=test npm run test:e2e -- --testPathPattern=basic.e2e-spec.ts
+```
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+- Coverage:
+```bash
+npm run test:cov
+```
 
-## Stay in touch
+### Design Notes
+- `status` stored as `varchar(20)` for cross-DB compatibility; typed as enum in code.
+- Many-to-Many between Users and Events to support invitees and MergeAll persistence.
+- Validation via class-validator; global ValidationPipe enabled.
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+### Production Notes
+- Disable `synchronize` and add migrations.
+- Move secrets/DB credentials to environment variables or a config service.
