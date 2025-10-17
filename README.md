@@ -1,5 +1,6 @@
 ## Project: NestJS Event Management Feature
-
+### Demo video
+https://drive.google.com/file/d/1u7m_hRGQFJGR4MNRWq5GoBk0PoAHYoxg/view?usp=sharing
 ### Overview
 Adds an Events feature to the NestJS TypeScript starter:
 - Event entity with CRUD and MergeAll.
